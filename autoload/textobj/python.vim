@@ -268,11 +268,11 @@ function! textobj#python#class_select_i()
 endfunction
 
 function! textobj#python#function_select_a()
-    return textobj#python#select_a('\(async def\|def\)')
+    return textobj#python#select_a('\%(async\s\+\)\?def')
 endfunction
 
 function! textobj#python#function_select_i()
-    return textobj#python#select_i('\(async def\|def\)')
+    return textobj#python#select_i('\%(async\s\+\)\?def')
 endfunction
 
 function! textobj#python#function_select(object_type)
