@@ -216,26 +216,23 @@ function! s:find_defn_selection(pattern)
     return ['V', l:defn_pos, l:end_pos]
 endfunction
 
-function! s:select_surrounding_blank_lines(pos)
-    let l:defn_pos = copy(a:pos)
+function! s:select_surrounding_blank_lines(select, cur_pos)
+    let [l:mode, l:start, l:end] = a:select
+    let l:prev_block_linenr = s:prev_non_blank_or_comment(l:start[1] - 1)
+    let l:next_block_linenr = nextnonblank(l:end[1] + 1)
 
-    let l:blanks_on_start = l:defn_pos[1][1] - (prevnonblank(l:defn_pos[1][1] - 1) + 1)
-    let l:current_block_indent_level = indent(l:defn_pos[1][1])
-    let l:next_block_linenr = nextnonblank(l:defn_pos[2][1] + 1)
-    let l:next_block_indent_level = indent(l:next_block_linenr)
-
-    if l:next_block_linenr != 0
-        if l:current_block_indent_level != 0 && l:next_block_indent_level == 0
+    if a:cur_pos[1] < l:start[1] || l:next_block_linenr is# 0
+        let l:start[1] = l:prev_block_linenr + 1
+    elseif indent(l:start[1]) && !indent(l:next_block_linenr)
+        let l:blanks_on_start = l:start[1] - (l:prev_block_linenr + 1)
         let l:desired_blanks = 2
         let l:desired_blanks = max([0, l:desired_blanks - l:blanks_on_start])
-            let l:defn_pos[2][1] = l:next_block_linenr - 1 - l:desired_blanks
+        let l:end[1] = l:next_block_linenr - 1 - l:desired_blanks
     else
-            let l:defn_pos[2][1] = l:next_block_linenr - 1
+        let l:end[1] = l:next_block_linenr - 1
     endif
-    else
-        let l:defn_pos[1][1] = prevnonblank(l:defn_pos[1][1] - 1) + 1
-    endif
-    return l:defn_pos
+
+    return [l:mode, l:start, l:end]
 endfunction
 
 function! textobj#python#select_a(pattern)
@@ -243,7 +240,7 @@ function! textobj#python#select_a(pattern)
     let l:defn_sel = s:find_defn_selection(a:pattern)
     if !empty(l:defn_sel)
         let l:defn_sel[1] = textobj#python#find_prev_decorators_pos(l:defn_sel[1])
-        let l:defn_sel = s:select_surrounding_blank_lines(l:defn_sel)
+        let l:defn_sel = s:select_surrounding_blank_lines(l:defn_sel, l:cur_pos)
         return l:defn_sel
     endif
     return 0

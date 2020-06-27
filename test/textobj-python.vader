@@ -191,6 +191,13 @@ Execute (At end of file, select prior whitespace):
   AssertEqual getpos("'<")[1], line("$") - 3
   AssertEqual getpos("'>")[1], line("$")
 
+Execute (At cursor in prior blank line, select prior whitespace):
+  /^class RegularClass(
+  let linenr = getpos(".")[1]
+  norm kvac<cr>
+  AssertEqual getpos("'<")[1], linenr - 2
+  AssertEqual getpos("'>")[1], linenr + 6
+
 Execute (Decorator: function):
   /^def function_with_decorator(
   let pos = getpos(".")
