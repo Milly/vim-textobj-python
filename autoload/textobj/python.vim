@@ -22,153 +22,197 @@
 "     SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 " }}}
 
-function! textobj#python#move_cursor_to_starting_line()
-    " Start at a nonblank line
+function! s:skip_pair(start, end, ...) abort
+    let l:flag = (a:000 + [''])[0]
     let l:cur_pos = getpos('.')
-    let l:cur_line = getline('.')
-    if l:cur_line =~# '^\s*$'
-        call cursor(prevnonblank(l:cur_pos[1]), 0)
+    if l:flag =~# 'b'
+        call search(a:end, 'bcW', l:cur_pos[1])
+    else
+        call search(a:start, 'cW', l:cur_pos[1])
     endif
+    if searchpair(a:start, '', a:end, l:flag.'rW') <= 0
+        call cursor(l:cur_pos[1:])
+        return 0
+    endif
+    return 1
 endfunction
 
-function! textobj#python#find_defn_line(kwd)
+function! s:next_non_blank_or_comment(linenr) abort
+    let l:linenr = a:linenr
+    while 1
+        let l:linenr = nextnonblank(l:linenr)
+        if l:linenr is# 0 || getline(l:linenr) !~# '^\s*#'
+            return l:linenr
+        endif
+        let l:linenr += 1
+    endwhile
+endfunction
+
+function! s:prev_non_blank_or_comment(linenr) abort
+    let l:linenr = a:linenr
+    while 1
+        let l:linenr = prevnonblank(l:linenr)
+        if l:linenr is# 0 || getline(l:linenr) !~# '^\s*#'
+            return l:linenr
+        endif
+        let l:linenr -= 1
+    endwhile
+endfunction
+
+" Find the start position of the block at given defn pattern
+" Return 0, if there is none.
+function! textobj#python#find_defn_pos(pattern)
+    let l:save_pos = getpos('.')
+
+    " Skip parens backward
+    call s:skip_pair('\[', '\]', 'b')
+    call s:skip_pair('(', ')', 'b')
 
     " Skip decorators
-    while getline('.') !~# '^\s*'.a:kwd.' '
-      " Avoid skipping decorator under the cursor
-      normal! $
-      let l:cur_pos = getpos('.')
-      let l:decorator = search('^\s*@.*(\?', 'bW')
-      if l:decorator == 0 
-        break
-      endif
-      " Match r-parent if any
-      normal! 0
-      normal! %
-      normal! j
-      let l:new_pos = getpos('.')
-      if  l:new_pos[1] <= l:cur_pos[1]
-        call setpos('.', l:cur_pos)
-        break
-      endif
+    while getline('.') =~# '^\s*@'
+        call s:skip_pair('(', ')')
+        let l:linenr = s:next_non_blank_or_comment(line('.') + 1)
+        if l:linenr is# 0
+            " EOF
+            call cursor(l:save_pos[1:])
+            return 0
+        endif
+        call cursor(l:linenr, 1)
     endwhile
 
-    let l:cur_line = getline('.')
-
-    let l:cur_pos = getpos('.')
-    if l:cur_line =~# '^\s*'.a:kwd.' '
-        let l:defn_pos = l:cur_pos
-    else
-        let l:cur_indent = indent(l:cur_pos[1])
-        while 1
-            if search('^\s*'.a:kwd.' ', 'bW')
-                let l:defn_pos = getpos('.')
-                let l:defn_indent = indent(l:defn_pos[1])
-                if l:defn_indent >= l:cur_indent
-                    " This is a defn at the same level or deeper, keep searching
-                    continue
-                else
-                    " Found a defn, make sure there aren't any statements at a
-                    " shallower indent level in between
-                    for l:l in range(l:defn_pos[1] + 1, l:cur_pos[1])
-                        if getline(l:l) !~# '^\s*$' && indent(l:l) <= l:defn_indent
-                            throw "defn-not-found"
-                        endif
-                    endfor
-                    break
-                endif
-            else
-                " We didn't find a suitable defn
-                throw "defn-not-found"
-            endif
-        endwhile
+    " If current line is defn, then return
+    call cursor(0, 1)
+    if search('^\s*\zs'.a:pattern.' ', 'c', line('.'))
+        return getpos('.')
     endif
-    call cursor(defn_pos)
+
+    " Find a defn backward
+    let l:cur_pos = getpos('.')
+    let l:cur_indent = indent('.')
+    while 1
+        if !search('^\s*\zs'.a:pattern.' ', 'bW')
+            " We didn't find a suitable defn
+            call cursor(l:save_pos[1:])
+            return 0
+        endif
+        let l:defn_pos = getpos('.')
+        let l:defn_indent = indent(l:defn_pos[1])
+        if l:defn_indent < l:cur_indent
+            break
+        endif
+        " This is a defn at the same level or deeper, keep searching
+    endwhile
+
+    " Skip multiline arguments and typings
+    call s:skip_pair('(', ')')
+    call s:skip_pair('\[', '\]')
+
+    " Found a defn, make sure there aren't any statements at a
+    " shallower indent level in between
+    for l:l in range(line('.') + 1, l:cur_pos[1])
+        if getline(l:l) !~# '^\s*\%(#.*\)\?$' && indent(l:l) <= l:defn_indent
+            call cursor(l:save_pos[1:])
+            return 0
+        endif
+    endfor
+
+    call cursor(l:defn_pos[1:])
     return l:defn_pos
 endfunction
 
-function! textobj#python#find_prev_decorators(l)
-    " Find the line with the first (valid) decorator above `line`, return the
-    " current line, if there is none.
-    let l:linenr = a:l
-    let l:line_ident = indent(l:linenr)
+" Find the position with the first (valid) decorator above defn position.
+" Return the defn position, if there is none.
+function! textobj#python#find_prev_decorators_pos(defn_pos)
+    let l:last_pos = a:defn_pos[:]
+    let l:linenr = a:defn_pos[1]
+    let l:defn_indent = indent(l:linenr)
     while 1
         " Get the first not blank line
-        let l:prev = prevnonblank(l:linenr - 1)
-        if l:prev == 0
+        let l:linenr = s:prev_non_blank_or_comment(l:linenr - 1)
+        if l:linenr is# 0
             " There is not above current one.
             break
         endif
 
-        " Move cursor
-        let l:prev_pos = getpos('.')
-        let l:prev_pos[1] = l:prev
-        call setpos('.', l:prev_pos)
+        " Skip parens backward
+        call cursor(l:linenr, 0)
+        call s:skip_pair('(', ')', 'b')
+        let l:linenr = line('.')
 
-        let l:prev_indent = indent(l:prev_pos[1])
-        if l:prev_indent < l:line_ident
-            " Indentention isn't valid for a decorator
-            break
-        endif
-
-        " Match l-parent if any
-        normal! $
-        normal! %
-
-        let l:prev_pos = getpos('.')
-
-        " The decorator should be in the same level 
-        " as the original class/function.
-        if getline(l:prev_pos[1])[l:line_ident] != "@"
-            break
-        endif
-        let l:linenr = l:prev_pos[1]
-    endwhile
-    return l:linenr
-endfunction
-
-function! textobj#python#find_last_line(kwd, defn_pos, indent_level)
-    " Find the last line of the block at given indent level
-    let l:cur_pos = getpos('.')
-    let l:end_pos = l:cur_pos
-    while 1
-        " Is this a one-liner?
-        if getline('.') =~# '^\s*'.a:kwd.'\[^:\]\+:\s*\[^#\]'
-            return a:defn_pos
-        endif
-        " This isn't a one-liner, so skip the def line
-        if line('.') == a:defn_pos[1]
-            normal! j
+        " The decorator should be in the same level as defn
+        if search('^\s*\zs@', 'bcW', l:linenr) && indent(line('.')) == l:defn_indent
+            let l:last_pos = getpos('.')
             continue
         endif
-        if getline('.') !~# '^\s*$'
-            if indent('.') > a:indent_level
-                let l:end_pos = getpos('.')
-            else
+
+        " There is not a (valid) decorator
+        break
+    endwhile
+    call cursor(l:last_pos[1:])
+    return l:last_pos
+endfunction
+
+" Find the start position of the block inner at given defn position.
+function! textobj#python#find_defn_inner_pos(defn_pos)
+    " Put the cursor on the def line
+    call cursor(a:defn_pos[1:])
+
+    " Skip multiline arguments and typings
+    call s:skip_pair('(', ')')
+    call s:skip_pair('\[', '\]')
+
+    if search(':\s*\zs#\@!\S.*$', 'cz', line('.'))
+        " It is a one-liner
+    else
+        " Start from the beginning of the next line
+        call cursor(line('.') + 1, 1)
+    endif
+
+    return getpos('.')
+endfunction
+
+" Find the last position of the block at given defn position.
+function! textobj#python#find_last_pos(defn_pos)
+    " Put the cursor on the def inner position
+    let l:end_pos = textobj#python#find_defn_inner_pos(a:defn_pos)
+
+    if l:end_pos[2] > 1
+        " It is a one-liner
+    else
+        " Find the last line of deeper indent lines
+        let l:defn_indent = indent(a:defn_pos[1])
+        let l:linenr = l:end_pos[1]
+        while 1
+            let l:linenr = nextnonblank(l:linenr + 1)
+            if l:linenr is# 0
+                " EOF
                 break
             endif
-        endif
-        if line('.') == line('$')
-            break
-        else
-            normal! j
-        endif
-    endwhile
-    call cursor(l:cur_pos[1], l:cur_pos[2])
+            if indent(l:linenr) <= l:defn_indent
+                " de-indented
+                if getline(l:linenr) =~# '^\s*#'
+                    " Skip de-indented commend
+                    continue
+                endif
+                break
+            endif
+            let l:end_pos[1] = l:linenr
+        endwhile
+    endif
+
+    " Put the cursor on the end of line
+    let l:end_pos[2] = col([l:end_pos[1], '$'])
+    call cursor(l:end_pos[1:])
     return l:end_pos
 endfunction
 
-function! s:find_defn(kwd)
-    call textobj#python#move_cursor_to_starting_line()
-
-    try
-        let l:defn_pos = textobj#python#find_defn_line(a:kwd)
-    catch /defn-not-found/
+function! s:find_defn_selection(pattern)
+    call cursor(s:next_non_blank_or_comment(line('.')), 0)
+    let l:defn_pos = textobj#python#find_defn_pos(a:pattern)
+    if empty(l:defn_pos)
         return 0
-    endtry
-    let l:defn_indent_level = indent(l:defn_pos[1])
-
-    let l:end_pos = textobj#python#find_last_line(a:kwd, l:defn_pos, l:defn_indent_level)
+    endif
+    let l:end_pos = textobj#python#find_last_pos(l:defn_pos)
     return ['V', l:defn_pos, l:end_pos]
 endfunction
 
@@ -182,45 +226,38 @@ function! s:select_surrounding_blank_lines(pos)
 
     if l:next_block_linenr != 0
         if l:current_block_indent_level != 0 && l:next_block_indent_level == 0
-            let l:desired_blanks = 2
-            let l:desired_blanks = max([0, l:desired_blanks - l:blanks_on_start])
+        let l:desired_blanks = 2
+        let l:desired_blanks = max([0, l:desired_blanks - l:blanks_on_start])
             let l:defn_pos[2][1] = l:next_block_linenr - 1 - l:desired_blanks
-        else
+    else
             let l:defn_pos[2][1] = l:next_block_linenr - 1
-        endif
+    endif
     else
         let l:defn_pos[1][1] = prevnonblank(l:defn_pos[1][1] - 1) + 1
     endif
     return l:defn_pos
 endfunction
 
-function! textobj#python#select_a(kwd)
-    let l:defn_pos = s:find_defn(a:kwd)
-    if type(l:defn_pos) == type([])
-        let l:defn_pos[1][1] = textobj#python#find_prev_decorators(l:defn_pos[1][1])
-        let l:defn_pos = s:select_surrounding_blank_lines(l:defn_pos)
-        return l:defn_pos
+function! textobj#python#select_a(pattern)
+    let l:cur_pos = getpos('.')
+    let l:defn_sel = s:find_defn_selection(a:pattern)
+    if !empty(l:defn_sel)
+        let l:defn_sel[1] = textobj#python#find_prev_decorators_pos(l:defn_sel[1])
+        let l:defn_sel = s:select_surrounding_blank_lines(l:defn_sel)
+        return l:defn_sel
     endif
     return 0
 endfunction
 
-function! textobj#python#select_i(kwd)
-    let l:a_pos = s:find_defn(a:kwd)
-    if type(l:a_pos) == type([])
-        if l:a_pos[1][1] == l:a_pos[2][1]
-            " This is a one-liner, treat it like af
-            " TODO Maybe change this to a 'v'-mode selection and only get the
-            " statement from the one-liner?
-            return l:a_pos
+function! textobj#python#select_i(pattern)
+    let l:defn_sel = s:find_defn_selection(a:pattern)
+    if !empty(l:defn_sel)
+        let l:defn_sel[1] = textobj#python#find_defn_inner_pos(l:defn_sel[1])
+        if l:defn_sel[1][1] is# l:defn_sel[2][1]
+            " It is a one-liner
+            let l:defn_sel[0] = 'v'
         endif
-        " Put the cursor on the def line
-        call cursor(l:a_pos[1][1], l:a_pos[1][2])
-        " Get to the closing parenthesis if it exists
-        normal! ^f(%
-        " Start from the beginning of the next line
-        normal! j0
-        let l:start_pos = getpos('.')
-        return ['V', l:start_pos, l:a_pos[2]]
+        return l:defn_sel
     endif
     return 0
 endfunction

@@ -27,11 +27,11 @@ Execute (Multiline defn a function):
   AssertEqual 13, getpos("'<")[1]
   AssertEqual 20, getpos("'>")[1]
 
-Execute (One-liner inner function):
+Execute (One-liner inner function v-mode):
   call cursor(21, 12)
   normal vif<cr>
-  AssertEqual 21, getpos("'<")[1]
-  AssertEqual 21, getpos("'>")[1]
+  AssertEqual [21, 17], getpos("'<")[1:2]
+  AssertEqual [21, 21], getpos("'>")[1:2]
 
 Execute (One-liner a function):
   call cursor(21, 12)
@@ -39,10 +39,10 @@ Execute (One-liner a function):
   AssertEqual 21, getpos("'<")[1]
   AssertEqual 23, getpos("'>")[1]
 
-Execute (FIXME Multiline defn one-liner inner function):
+Execute (Multiline defn one-liner inner function v-mode):
   call cursor(24, 5)
   normal vif<cr>
-  AssertEqual 24, getpos("'<")[1]
+  AssertEqual 25, getpos("'<")[1]
   AssertEqual 25, getpos("'>")[1]
 
 Execute (Multiline defn one-liner a function):
@@ -177,7 +177,7 @@ Execute (Don't cross scope for defn):
   let linenr = getpos(".")[1]
   norm vaf<cr>
   AssertEqual getpos(".")[1], linenr, "The line should not have changed."
-  AssertThrows textobj#python#find_defn_line("def")
+  AssertEqual 0, textobj#python#find_defn_pos("def")
 
 Execute (Method with decorator):
   /^    def method_with_decorator(
@@ -193,14 +193,15 @@ Execute (At end of file, select prior whitespace):
 
 Execute (Decorator: function):
   /^def function_with_decorator(
-  let linenr = getpos(".")[1]
-"   debug call textobj#python#find_prev_decorators(linenr)
-  AssertEqual linenr-1, textobj#python#find_prev_decorators(linenr)
+  let pos = getpos(".")
+  let expected = [pos[0], pos[1] - 1] + pos[2:]
+"   debug call textobj#python#find_prev_decorators_pos(pos)
+  AssertEqual expected, textobj#python#find_prev_decorators_pos(pos)
   " Move cursor back
   /^def function_with_decorator(
   norm jvaf<cr>
   AssertEqual getline("."), "@decorator"
-  AssertEqual getpos("'>")[1], linenr + 3
+  AssertEqual getpos("'>")[1], pos[1] + 3
 
 Execute (Decorators: function):
   /^def function_with_decorators(
@@ -273,13 +274,14 @@ Execute (Decorators: a function from decorator):
 
 Execute (Decorator: class):
   /^class ClassWithDecorator:
-  let linenr = getpos(".")[1]
-  AssertEqual linenr-1, textobj#python#find_prev_decorators(linenr)
+  let pos = getpos(".")
+  let expected = [pos[0], pos[1] - 1] + pos[2:]
+  AssertEqual expected, textobj#python#find_prev_decorators_pos(pos)
   " Move cursor back
   /^class ClassWithDecorator:
   norm jvac<cr>
   AssertEqual getline("."), "@decorator"
-  AssertEqual getpos("'>")[1], linenr + 3
+  AssertEqual getpos("'>")[1], pos[1] + 3
 
 Execute (Decorators: class):
   /^class ClassWithDecorators:
