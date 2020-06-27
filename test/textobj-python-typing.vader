@@ -1,0 +1,224 @@
+Before (Read in test-typing.py):
+  execute "read " . globpath(fnamemodify(g:vader_file, ":h"), "test-typing.py")
+  setf python
+  normal 1Gdd
+
+Execute (Typing: function):
+  /^def function_with_typing(
+  let linenr = getpos(".")[1]
+  norm vaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 3
+
+Execute (Typing: inner function):
+  /^def function_with_typing(
+  let linenr = getpos(".")[1]
+  norm vif<cr>
+  AssertEqual getpos("'<")[1], linenr + 1
+  AssertEqual getpos("'>")[1], linenr + 1
+
+Execute (Typings: function):
+  /^def function_with_typings(
+  let linenr = getpos(".")[1]
+  norm vaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 4
+
+Execute (Typings: function from typing):
+  /^def function_with_typings(foo:\zs
+  let linenr = getpos(".")[1]
+  norm vaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 4
+
+Execute (Typings: inner function):
+  /^def function_with_typings(
+  norm vif<cr>
+  AssertEqual getline("."), "# function_with_typings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: inner function from typing):
+  /^def function_with_typings(foo:\zs
+  norm vif<cr>
+  AssertEqual getline("."), "# function_with_typings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typing: One-liner inner function v-mode):
+  /^def oneliner_with_typing(
+  let linenr = getpos(".")[1]
+  normal vif<cr>
+  AssertEqual [linenr, 45], getpos("'<")[1:2]
+  AssertEqual [linenr, 49], getpos("'>")[1:2]
+
+Execute (Typings: inner function from typings with multiple lines):
+  /^def function_with_multiline_typings(
+  norm jvif<cr>
+  AssertEqual getline("."), "# function_with_multiline_typings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: inner function from typings with multiple lines (2)):
+  /^def function_with_multiline_typings(
+  norm 4jvif<cr>
+  AssertEqual getline("."), "# function_with_multiline_typings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: inner function from typings with multiple lines (3)):
+  /^def function_with_multiline_typings(
+  norm 5jvif<cr>
+  AssertEqual getline("."), "# function_with_multiline_typings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: inner function from typings with multiple lines (4)):
+  /^def function_with_multiline_typings(
+  norm 6jvif<cr>
+  AssertEqual getline("."), "# function_with_multiline_typings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: inner function from typings with multiple lines (5)):
+  /^def function_with_multiline_typings(
+  norm 7jvif<cr>
+  AssertEqual getline("."), "# function_with_multiline_typings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: inner function from typings with multiple lines (6)):
+  /^def function_with_multiline_typings(
+  norm 10jvif<cr>
+  AssertEqual getline("."), "# function_with_multiline_typings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: function with typings with multiple lines):
+  /^def function_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm jvaf<cr>
+  AssertEqual getline("."), "def function_with_multiline_typings("
+  AssertEqual getpos("'>")[1], linenr + 16
+
+Execute (Typings: One-liner inner function from typings with multiple lines):
+  /^def oneliner_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm jvif<cr>
+  AssertEqual [linenr + 12, 4], getpos("'<")[1:2]
+  AssertEqual [linenr + 12, 8], getpos("'>")[1:2]
+
+Execute (Typings: One-liner inner function from typings with multiple lines (2)):
+  /^def oneliner_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm 5jvif<cr>
+  AssertEqual [linenr + 12, 4], getpos("'<")[1:2]
+  AssertEqual [linenr + 12, 8], getpos("'>")[1:2]
+
+Execute (Typing: class):
+  /^class ClassWithTyping(
+  let linenr = getpos(".")[1]
+  norm vac<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 3
+
+Execute (Typings: class):
+  /^class ClassWithTypings(
+  let linenr = getpos(".")[1]
+  norm vac<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 4
+
+Execute (Typings: class from typing):
+  /^class ClassWithTypings(Generic\[\zs
+  let linenr = getpos(".")[1]
+  norm vac<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 4
+
+Execute (Typings: inner class from typings with multiple lines):
+  /^class ClassWithMultilineTypings(
+  norm vic<cr>
+  AssertEqual getline("."), "# ClassWithMultilineTypings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: inner class from typings with multiple lines (2)):
+  /^class ClassWithMultilineTypings(
+  norm jvic<cr>
+  AssertEqual getline("."), "# ClassWithMultilineTypings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: inner class from typings with multiple lines (3)):
+  /^class ClassWithMultilineTypings(
+  norm 3jvic<cr>
+  AssertEqual getline("."), "# ClassWithMultilineTypings"
+  AssertEqual getline("'>"), "pass"
+
+Execute (Typings: class with typings with multiple lines):
+  /^class ClassWithMultilineTypings(
+  let linenr = getpos(".")[1]
+  norm jvac<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 8
+
+Execute (Typing: method with typing):
+  /^    def method_with_typing(
+  let linenr = getpos(".")[1]
+  norm vaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 2
+
+Execute (Typings: method with typings with multiple lines):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm vaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 16
+
+Execute (Typings: method from typings with multiple lines):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm jvaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 16
+
+Execute (Typings: method from typings with multiple lines (2)):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm 5jvaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 16
+
+Execute (Typings: method from typings with multiple lines (3)):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm 6jvaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 16
+
+Execute (Typings: method from typings with multiple lines (4)):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm 8jvaf<cr>
+  AssertEqual getpos("'<")[1], linenr
+  AssertEqual getpos("'>")[1], linenr + 16
+
+Execute (Typings: inner method from typings with multiple lines):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm jvif<cr>
+  AssertEqual getline("."), "    # method_with_multiline_typings"
+  AssertEqual getline("'>"), "    pass"
+
+Execute (Typings: inner method from typings with multiple lines (2)):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm 5jvif<cr>
+  AssertEqual getline("."), "    # method_with_multiline_typings"
+  AssertEqual getline("'>"), "    pass"
+
+Execute (Typings: inner method from typings with multiple lines (3)):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm 6jvif<cr>
+  AssertEqual getline("."), "    # method_with_multiline_typings"
+  AssertEqual getline("'>"), "    pass"
+
+Execute (Typings: inner method from typings with multiple lines (4)):
+  /^    def method_with_multiline_typings(
+  let linenr = getpos(".")[1]
+  norm 8jvif<cr>
+  AssertEqual getline("."), "    # method_with_multiline_typings"
+  AssertEqual getline("'>"), "    pass"
